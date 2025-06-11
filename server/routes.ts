@@ -184,7 +184,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch system status" });
     }
   });
-
   app.post("/api/control", async (req, res) => {
     try {
       const { mode, pumpState, moistureThreshold } = commandSchema.parse(req.body);
@@ -210,6 +209,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           key: "moisture_threshold",
           value: moistureThreshold.toString()
         });
+        
+        // Send threshold update to ESP32 via MQTT
+        await mqttManager.sendThreshold(moistureThreshold);
       }
       
       res.json({ success: true, mode, pumpState, moistureThreshold });

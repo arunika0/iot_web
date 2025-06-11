@@ -234,19 +234,20 @@ class MqttManagerImpl implements MqttManager {
       return;
     }
 
-    const command = `THRESHOLD ${threshold}`;
+    // Send threshold directly as number to irigasi/threshold topic
+    const thresholdValue = threshold.toString();
     
-    this.client.publish("irigasi/kontrol", command, (err) => {
+    this.client.publish("irigasi/threshold", thresholdValue, (err) => {
       if (err) {
         console.error("Failed to send threshold command:", err);
       } else {
-        console.log("Sent threshold command:", command);
+        console.log("Sent threshold to irigasi/threshold:", thresholdValue);
         
         // Log the threshold update
         storage.createSystemLog({
           type: "info",
           message: `Moisture threshold updated: ${threshold}%`,
-          metadata: JSON.stringify({ threshold, command })
+          metadata: JSON.stringify({ threshold, topic: "irigasi/threshold" })
         });
       }
     });
