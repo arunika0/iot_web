@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRealtimeData } from "@/hooks/use-realtime-data";
+import { useAuth } from "@/contexts/auth-context";
+import { useLocation } from "wouter";
 import { MetricCard } from "@/components/metric-card";
 import { EnvironmentalChart } from "@/components/environmental-chart";
 import { PumpChart } from "@/components/pump-chart";
@@ -11,7 +13,7 @@ import { SettingsPanel } from "@/components/settings-panel";
 import { TestDataButton } from "@/components/test-data-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Thermometer, Droplets, Waves, Settings, Sprout, AlertTriangle } from "lucide-react";
+import { Thermometer, Droplets, Waves, Settings, Sprout, AlertTriangle, LogOut, User } from "lucide-react";
 import type { SensorReading, SystemLog, SystemStatus, Alert as AlertType } from "@/types/sensor-data";
 
 export default function Dashboard() {
@@ -23,6 +25,12 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   
   const { isConnected, lastMessage } = useRealtimeData();
+  const { user, logout } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   // Fetch initial data
   const { data: readings = [] } = useQuery<SensorReading[]>({
@@ -126,8 +134,7 @@ export default function Dashboard() {
                 <h1 className="text-xl font-semibold text-gray-900">Smart Irrigation System</h1>
                 <p className="text-sm text-gray-500">Real-time Agricultural Monitoring</p>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
+            </div>            <div className="flex items-center space-x-4">
               <TestDataButton />
               <Button
                 variant="outline"
@@ -137,6 +144,24 @@ export default function Dashboard() {
               >
                 <Settings className="w-4 h-4" />
                 <span>Settings</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation("/profile")}
+                className="flex items-center space-x-2"
+              >
+                <User className="w-4 h-4" />
+                <span>{user?.username}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Logout</span>
               </Button>
               <div className="flex items-center space-x-2">
                 <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />

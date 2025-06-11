@@ -99,12 +99,18 @@ class MqttManagerImpl implements MqttManager {
               data: reading
             });
 
-            // Check for alerts
-            if (data.tanah < 40) {
+            // Check for alerts - use configurable threshold
+            const thresholdSetting = await storage.getSetting("moisture_threshold");
+            const moistureThreshold = parseInt(thresholdSetting?.value || "45");
+            
+            if (data.tanah < moistureThreshold) {
               const logEntry = await storage.createSystemLog({
                 type: "warning",
-                message: `Low soil moisture detected: ${data.tanah}%`,
-                metadata: JSON.stringify({ moistureLevel: data.tanah })
+                message: `Low soil moisture detected: ${data.tanah}% (threshold: ${moistureThreshold}%)`,
+                metadata: JSON.stringify({ 
+                  moistureLevel: data.tanah,
+                  threshold: moistureThreshold 
+                })
               });
 
               // Send alert via WebSocket
@@ -112,7 +118,7 @@ class MqttManagerImpl implements MqttManager {
                 type: "alert",
                 data: {
                   type: "low_moisture",
-                  message: `Low soil moisture detected: ${data.tanah}%`,
+                  message: `Low soil moisture detected: ${data.tanah}% (threshold: ${moistureThreshold}%)`,
                   timestamp: new Date()
                 }
               });
@@ -217,6 +223,30 @@ class MqttManagerImpl implements MqttManager {
           type: "info",
           message: `Command sent: ${command}`,
           metadata: JSON.stringify({ command, mode, pumpState })
+        });
+      }
+    });
+  }
+
+  async sendThreshold(threshold: number) {
+    if (!this.client || !this.isConnected) {
+      console.error("MQTT client not connected");
+      return;
+    }
+
+    const command = `THRESHOLD ${threshold}`;
+    
+    this.client.publish("irigasi/kontrol", command, (err) => {
+      if (err) {
+        console.error("Failed to send threshold command:", err);
+      } else {
+        console.log("Sent threshold command:", command);
+        
+        // Log the threshold update
+        storage.createSystemLog({
+          type: "info",
+          message: `Moisture threshold updated: ${threshold}%`,
+          metadata: JSON.stringify({ threshold, command })
         });
       }
     });

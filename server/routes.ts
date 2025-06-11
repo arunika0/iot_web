@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import bcrypt from "bcrypt";
+import passport from "./auth";
+import { requireAuth, redirectIfAuthenticated } from "./auth";
 import { storage } from "./storage";
 import { mqttManager } from "./mqtt";
 import { insertSystemLogSchema } from "@shared/schema";
@@ -13,6 +16,79 @@ const commandSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Authentication Routes
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate('local', (err: any, user: any, info: any) => {
+      if (err) {
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+      if (!user) {
+        return res.status(401).json({ error: info?.message || 'Authentication failed' });
+      }
+      
+      req.logIn(user, (err) => {
+        if (err) {
+          return res.status(500).json({ error: 'Login failed' });
+        }
+        return res.json({ success: true, user: { id: user.id, username: user.username } });
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Logout failed' });
+      }
+      res.json({ success: true });
+    });
+  });  app.get("/api/auth/user", (req, res) => {
+    if (req.isAuthenticated()) {
+      res.json({ user: req.user });
+    } else {
+      res.status(401).json({ error: 'Not authenticated' });
+    }
+  });
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'Current password and new password are required' });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+      }
+
+      const user = req.user as any;
+      const dbUser = await storage.getUserById(user.id);
+      
+      if (!dbUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, dbUser.password);
+      
+      if (!isValidPassword) {
+        return res.status(400).json({ error: 'Current password is incorrect' });
+      }
+
+      // Hash new password
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      
+      // Update password in database
+      await storage.updateUserPassword(user.id, hashedNewPassword);
+      
+      res.json({ success: true, message: 'Password changed successfully' });
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Protect all other API routes
+  app.use("/api", requireAuth);
+
   // API Routes
   app.get("/api/sensor-readings/latest", async (req, res) => {
     try {
